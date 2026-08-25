@@ -1,0 +1,45 @@
+name: ICT Signal Scanner
+
+on:
+  schedule:
+    # Jalan tiap 15 menit. Sesuaikan dengan TIMEFRAME di .env / repo variable.
+    # Catatan: timing cron GitHub Actions tidak selalu presisi, bisa delay
+    # beberapa menit saat traffic tinggi -- cukup aman untuk timeframe 15m ke atas.
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {} # supaya bisa dites manual dari tab Actions
+
+permissions:
+  contents: write # perlu untuk commit balik state.json
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r free-python-version/requirements.txt
+
+      - name: Run scanner
+        working-directory: free-python-version
+        env:
+          TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PAIRS: ${{ vars.PAIRS }}
+          TIMEFRAME: ${{ vars.TIMEFRAME }}
+          MIN_GRADE: ${{ vars.MIN_GRADE }}
+        run: python ict_scanner.py
+
+      - name: Simpan state (commit balik ke repo)
+        working-directory: free-python-version
+        run: |
+          git config user.name "ict-scanner-bot"
+          git config user.email "actions@github.com"
+          git add state.json
+          git diff --cached --quiet || git commit -m "chore: update scanner state [skip ci]"
+          git push
